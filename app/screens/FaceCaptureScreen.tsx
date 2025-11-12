@@ -19,7 +19,7 @@ import { AppStackScreenProps } from "@/navigators/AppNavigator"
 import { colors } from "@/theme/colors"
 import { useAppTheme } from "@/theme/context"
 import { ThemedStyle } from "@/theme/types"
-import { useResizedFrameProcessor } from "@/utils/resizeFrameProcessor"
+import { ProcessedFrame, useFaceDetectionProcessor } from "@/utils/useFaceDetectionProccessor"
 
 interface FaceCaptureScreenProps extends AppStackScreenProps<"FaceCapture"> {}
 
@@ -37,7 +37,6 @@ export const FaceCaptureScreen: FC<FaceCaptureScreenProps> = () => {
   const [hasPermission, setHasPermission] = useState(false)
   const [isTaking, setIsTaking] = useState(false)
   const [isFront, setIsFront] = useState<boolean>(true)
-  const [debugInfo, setDebugInfo] = useState<string>("")
 
   const device = useCameraDevice(isFront ? "front" : "back")
 
@@ -101,17 +100,19 @@ export const FaceCaptureScreen: FC<FaceCaptureScreenProps> = () => {
     }
   }, [hasPermission])
 
-  const frameProcessor = useResizedFrameProcessor((tensor) => {
-    console.log("Resized tensor shape:", tensor.shape)
-    console.log("First 10 normalized values:", tensor.data.slice(0, 10))
+  const handleFrameProcessed = useCallback((result: ProcessedFrame) => {
+    console.log("Processed frame:", {
+      shape: result.shape,
+      timestamp: result.timestamp,
+      firstValues: result.preview,
+    })
+  }, [])
 
-    // Ghi ra màn hình để xem
-    setDebugInfo(
-      `Shape: ${tensor.shape.join("x")}\n` +
-        `First 3 values: ${Array.from(tensor.data.slice(0, 3))
-          .map((v) => v.toFixed(2))
-          .join(", ")}`,
-    )
+  const { frameProcessor } = useFaceDetectionProcessor({
+    width: 256,
+    height: 256,
+    onFrameProcessed: handleFrameProcessed,
+    throttleMs: 200, // Tăng lên 200ms để giảm giật
   })
 
   const uploadPhoto = async (photo: { path: string }) => {

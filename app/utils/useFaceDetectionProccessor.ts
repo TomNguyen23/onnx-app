@@ -6,8 +6,8 @@ import { useResizePlugin } from "vision-camera-resize-plugin"
 export interface ProcessedFrame {
   shape: [number, number, number, number]
   timestamp: number
-  // Không gửi Float32Array qua Worklets - chỉ gửi metadata
-  preview?: number[] // optional: first few values for debugging
+  preview?: number[]
+  imageData: number[] // Đổi từ Float32Array thành number[]
 }
 
 interface UseFaceDetectionProcessorOptions {
@@ -18,7 +18,7 @@ interface UseFaceDetectionProcessorOptions {
 }
 
 export function useFaceDetectionProcessor(options: UseFaceDetectionProcessorOptions = {}) {
-  const { width = 256, height = 256, onFrameProcessed, throttleMs = 200 } = options // Tăng throttle lên 200ms
+  const { width = 256, height = 256, onFrameProcessed, throttleMs = 200 } = options
 
   const { resize } = useResizePlugin()
   const lastProcessedRef = useRef(0)
@@ -58,10 +58,10 @@ export function useFaceDetectionProcessor(options: UseFaceDetectionProcessorOpti
           dataType: "uint8",
         })
 
-        // Step 2: Normalize pixel values to [0, 1]
-        const normalized = new Float32Array(resized.length)
+        // Step 2: Normalize pixel values to [0, 1] và chuyển thành array
+        const normalized: number[] = []
         for (let i = 0; i < resized.length; i++) {
-          normalized[i] = resized[i] / 255.0 // Scale về [0, 1]
+          normalized.push(resized[i] / 255.0)
         }
 
         // Step 3: Create tensor shape
@@ -79,6 +79,7 @@ export function useFaceDetectionProcessor(options: UseFaceDetectionProcessorOpti
           shape: [1, channels, size, size],
           timestamp: now,
           preview,
+          imageData: normalized, // Giờ đây là number[] thay vì Float32Array
         }
 
         // Step 5: Send to JS thread

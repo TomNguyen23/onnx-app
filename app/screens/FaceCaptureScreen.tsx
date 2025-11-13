@@ -1,4 +1,4 @@
-import { FC, useCallback, useEffect, useRef, useState } from "react"
+import { FC, useCallback, useEffect, useRef, useState, useMemo } from "react"
 import {
   View,
   ViewStyle,
@@ -19,6 +19,7 @@ import { AppStackScreenProps } from "@/navigators/AppNavigator"
 import { colors } from "@/theme/colors"
 import { useAppTheme } from "@/theme/context"
 import { ThemedStyle } from "@/theme/types"
+import { detectFaceScores } from "@/utils/faceDetectionInference"
 import { ProcessedFrame, useFaceDetectionProcessor } from "@/utils/useFaceDetectionProccessor"
 
 interface FaceCaptureScreenProps extends AppStackScreenProps<"FaceCapture"> {}
@@ -39,6 +40,17 @@ export const FaceCaptureScreen: FC<FaceCaptureScreenProps> = () => {
   const [isFront, setIsFront] = useState<boolean>(true)
 
   const device = useCameraDevice(isFront ? "front" : "back")
+
+  // Add format selection
+  const format = useMemo(() => {
+    if (!device?.formats) return undefined
+
+    return (
+      device.formats.find((f) => {
+        return f.maxFps >= 10 && f.videoWidth >= 1280 && f.videoHeight >= 720
+      }) ?? device.formats[0]
+    )
+  }, [device])
 
   useEffect(() => {
     const requestPermission = async () => {
@@ -100,19 +112,33 @@ export const FaceCaptureScreen: FC<FaceCaptureScreenProps> = () => {
     }
   }, [hasPermission])
 
-  const handleFrameProcessed = useCallback((result: ProcessedFrame) => {
-    console.log("Processed frame:", {
-      shape: result.shape,
-      timestamp: result.timestamp,
-      firstValues: result.preview,
-    })
+  const isProcessingInference = useRef(false)
+
+  const handleFrameProcessed = useCallback(async (result: ProcessedFrame) => {
+    if (isProcessingInference.current || !modelRef.current) {
+      return
+    }
+
+    try {
+      isProcessingInference.current = true
+
+      // Chạy inference để lấy tất cả scores
+      const detection = await detectFaceScores(modelRef.current, result.imageData, result.shape)
+
+      // Log scores
+      console.log("Total scores:", detection.allScores.length)
+    } catch (error) {
+      console.error("Inference error:", error)
+    } finally {
+      isProcessingInference.current = false
+    }
   }, [])
 
   const { frameProcessor } = useFaceDetectionProcessor({
     width: 256,
     height: 256,
     onFrameProcessed: handleFrameProcessed,
-    throttleMs: 200, // Tăng lên 200ms để giảm giật
+    throttleMs: 500, // Tăng lên 200ms để giảm giật
   })
 
   const uploadPhoto = async (photo: { path: string }) => {
@@ -190,7 +216,9 @@ export const FaceCaptureScreen: FC<FaceCaptureScreenProps> = () => {
         isActive
         photo={true}
         pixelFormat="yuv"
+        // format={format}
         frameProcessor={frameProcessor}
+        // fps={10}
       />
 
       {/* Face Guide Overlay */}

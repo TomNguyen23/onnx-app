@@ -47,7 +47,7 @@ export const FaceCaptureScreen: FC<FaceCaptureScreenProps> = () => {
 
     return (
       device.formats.find((f) => {
-        return f.maxFps >= 10 && f.videoWidth >= 1280 && f.videoHeight >= 720
+        return f.maxFps >= 30 && f.videoWidth >= 1280 && f.videoHeight >= 720
       }) ?? device.formats[0]
     )
   }, [device])
@@ -114,33 +114,7 @@ export const FaceCaptureScreen: FC<FaceCaptureScreenProps> = () => {
 
   const isProcessingInference = useRef(false)
 
-  const handleFrameProcessed = useCallback(async (result: ProcessedFrame) => {
-    if (isProcessingInference.current || !modelRef.current) {
-      return
-    }
-
-    try {
-      isProcessingInference.current = true
-
-      // Chạy inference để lấy tất cả scores
-      const detection = await detectFaceScores(modelRef.current, result.imageData, result.shape)
-
-      // Log scores
-      console.log("Total scores:", detection.allScores.length)
-    } catch (error) {
-      console.error("Inference error:", error)
-    } finally {
-      isProcessingInference.current = false
-    }
-  }, [])
-
-  const { frameProcessor } = useFaceDetectionProcessor({
-    width: 256,
-    height: 256,
-    onFrameProcessed: handleFrameProcessed,
-    throttleMs: 500, // Tăng lên 200ms để giảm giật
-  })
-
+  // Moved uploadPhoto and AutoCapture above handleFrameProcessed so AutoCapture is defined before use
   const uploadPhoto = async (photo: { path: string }) => {
     console.log("Captured Photo:", {
       uri: photo.path,
@@ -164,12 +138,48 @@ export const FaceCaptureScreen: FC<FaceCaptureScreenProps> = () => {
       console.warn("[VisionAutoCapture] Auto-capture error:", error)
     } finally {
       setIsTaking(false)
-      // Add a small delay before allowing the next auto-capture
       setTimeout(() => {
         isAutoCapturingRef.current = false
       }, 500)
     }
   }, [isTaking])
+
+  const handleFrameProcessed = useCallback(
+    async (result: ProcessedFrame) => {
+      if (isProcessingInference.current || !modelRef.current) {
+        return
+      }
+
+      try {
+        isProcessingInference.current = true
+
+        const detection = await detectFaceScores(modelRef.current, result.imageData, result.shape)
+        console.log("Total scores:", detection.allScores)
+
+        const FACE_SCORE_THRESHOLD = 0.8
+        const hasHighConfidenceFace = detection.allScores.some(
+          (score) => score >= FACE_SCORE_THRESHOLD,
+        )
+
+        if (hasHighConfidenceFace) {
+          console.log("High confidence face detected, triggering auto-capture")
+          await AutoCapture()
+        }
+      } catch (error) {
+        console.error("Inference error:", error)
+      } finally {
+        isProcessingInference.current = false
+      }
+    },
+    [AutoCapture],
+  )
+
+  const { frameProcessor } = useFaceDetectionProcessor({
+    width: 256,
+    height: 256,
+    onFrameProcessed: handleFrameProcessed,
+    throttleMs: 1000, // Tăng lên 1000ms để giảm giật
+  })
 
   const handleManualCapture = useCallback(async () => {
     if (!cameraRef.current || isTaking) return
@@ -216,9 +226,9 @@ export const FaceCaptureScreen: FC<FaceCaptureScreenProps> = () => {
         isActive
         photo={true}
         pixelFormat="yuv"
-        // format={format}
+        format={format}
         frameProcessor={frameProcessor}
-        // fps={10}
+        fps={30}
       />
 
       {/* Face Guide Overlay */}

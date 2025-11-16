@@ -7,7 +7,7 @@ export interface ProcessedFrame {
   shape: [number, number, number, number]
   timestamp: number
   preview?: number[]
-  imageData: number[] // Đổi từ Float32Array thành number[]
+  imageData: number[] // CHW format
 }
 
 interface UseFaceDetectionProcessorOptions {
@@ -19,7 +19,6 @@ interface UseFaceDetectionProcessorOptions {
 
 export function useFaceDetectionProcessor(options: UseFaceDetectionProcessorOptions = {}) {
   const { width = 256, height = 256, onFrameProcessed, throttleMs = 200 } = options
-
   const { resize } = useResizePlugin()
   const lastProcessedRef = useRef(0)
 
@@ -50,39 +49,47 @@ export function useFaceDetectionProcessor(options: UseFaceDetectionProcessorOpti
       try {
         // Step 1: Resize frame
         const resized = resize(frame, {
-          scale: {
-            width,
-            height,
-          },
+          scale: { width, height },
           pixelFormat: "rgb",
           dataType: "uint8",
         })
 
-        // Step 2: Normalize pixel values to [0, 1] và chuyển thành array
-        const normalized: number[] = []
-        for (let i = 0; i < resized.length; i++) {
-          normalized.push(resized[i] / 255.0)
+        // Step 2: Normalize và transpose từ HWC sang CHW
+        const channels = 3
+        const H = height
+        const W = width
+
+        // Tạo mảng CHW format
+        const chw: number[] = []
+
+        // Transpose: HWC -> CHW
+        // HWC format: [R0, G0, B0, R1, G1, B1, ...]
+        // CHW format: [R0, R1, R2, ..., G0, G1, G2, ..., B0, B1, B2, ...]
+
+        for (let c = 0; c < channels; c++) {
+          for (let h = 0; h < H; h++) {
+            for (let w = 0; w < W; w++) {
+              const hwcIndex = (h * W + w) * channels + c
+              const pixelValue = resized[hwcIndex] / 255.0
+              chw.push(pixelValue)
+            }
+          }
         }
 
-        // Step 3: Create tensor shape
-        const channels = 3
-        const pixels = resized.length / channels
-        const size = Math.round(Math.sqrt(pixels))
-
-        // Step 4: Tạo preview từ first 10 values
+        // Step 3: Tạo preview từ first 10 values
         const preview: number[] = []
-        for (let i = 0; i < Math.min(10, normalized.length); i++) {
-          preview.push(normalized[i])
+        for (let i = 0; i < Math.min(10, chw.length); i++) {
+          preview.push(chw[i])
         }
 
         const result: ProcessedFrame = {
-          shape: [1, channels, size, size],
+          shape: [1, channels, H, W],
           timestamp: now,
           preview,
-          imageData: normalized, // Giờ đây là number[] thay vì Float32Array
+          imageData: chw, // CHW format
         }
 
-        // Step 5: Send to JS thread
+        // Step 4: Send to JS thread
         handleProcessedFrameWorklet(result)
       } catch (error) {
         console.error("Frame processing error:", error)
@@ -91,7 +98,5 @@ export function useFaceDetectionProcessor(options: UseFaceDetectionProcessorOpti
     [width, height, throttleMs, handleProcessedFrameWorklet, resize],
   )
 
-  return {
-    frameProcessor,
-  }
+  return { frameProcessor }
 }

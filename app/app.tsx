@@ -24,6 +24,10 @@ import * as Linking from "expo-linking"
 import { KeyboardProvider } from "react-native-keyboard-controller"
 import { initialWindowMetrics, SafeAreaProvider } from "react-native-safe-area-context"
 
+import { RootStoreProvider } from "@/models/RootContext"
+import { RootStoreInstance } from "@/models/RootStore"
+import { setupRootStore } from "@/models/SetupRootStore"
+
 import { initI18n } from "./i18n"
 import { AppNavigator } from "./navigators/AppNavigator"
 import { useNavigationPersistence } from "./navigators/navigationUtilities"
@@ -69,11 +73,19 @@ export function App() {
 
   const [areFontsLoaded, fontLoadError] = useFonts(customFontsToLoad)
   const [isI18nInitialized, setIsI18nInitialized] = useState(false)
+  const [rootStore, setRootStore] = useState<RootStoreInstance | null>(null)
 
   useEffect(() => {
     initI18n()
       .then(() => setIsI18nInitialized(true))
       .then(() => loadDateFnsLocale())
+  }, [])
+
+  useEffect(() => {
+    ;(async () => {
+      const store = await setupRootStore()
+      setRootStore(store)
+    })()
   }, [])
 
   // Before we show the app, we have to wait for our state to be ready.
@@ -96,11 +108,13 @@ export function App() {
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <KeyboardProvider>
         <ThemeProvider>
-          <AppNavigator
-            linking={linking}
-            initialState={initialNavigationState}
-            onStateChange={onNavigationStateChange}
-          />
+          <RootStoreProvider value={rootStore}>
+            <AppNavigator
+              linking={linking}
+              initialState={initialNavigationState}
+              onStateChange={onNavigationStateChange}
+            />
+          </RootStoreProvider>
         </ThemeProvider>
       </KeyboardProvider>
     </SafeAreaProvider>

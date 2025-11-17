@@ -49,6 +49,12 @@ export const WelcomeScreen: FC = function WelcomeScreen() {
           navigation.navigate("FaceCapture")
         }}
       />
+      <Button
+        text="Face register"
+        onPress={() => {
+          navigation.navigate("FaceRegister")
+        }}
+      />
     </Screen>
   )
 }

@@ -11,6 +11,7 @@ import { createNativeStackNavigator, NativeStackScreenProps } from "@react-navig
 import Config from "@/config"
 import { ErrorBoundary } from "@/screens/ErrorScreen/ErrorBoundary"
 import { FaceCaptureScreen } from "@/screens/FaceCaptureScreen"
+import { FaceRegisterScreen } from "@/screens/FaceRegisterScreen"
 import { WelcomeScreen } from "@/screens/WelcomeScreen"
 import { useAppTheme } from "@/theme/context"
 
@@ -29,6 +30,7 @@ export type AppStackParamList = {
   Welcome: undefined
   // 🔥 Your screens go here
   FaceCapture: undefined
+  FaceRegister: undefined
   // IGNITE_GENERATOR_ANCHOR_APP_STACK_PARAM_LIST
 }
 
@@ -63,6 +65,7 @@ const AppStack = () => {
     >
       <Stack.Screen name="Welcome" component={WelcomeScreen} />
       <Stack.Screen name="FaceCapture" component={FaceCaptureScreen} />
+      <Stack.Screen name="FaceRegister" component={FaceRegisterScreen} />
       {/** 🔥 Your screens go here */}
       {/* IGNITE_GENERATOR_ANCHOR_APP_STACK_SCREENS */}
     </Stack.Navigator>

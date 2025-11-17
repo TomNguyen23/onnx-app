@@ -15,6 +15,7 @@ import { InferenceSession } from "onnxruntime-react-native"
 import { Camera, useCameraDevice } from "react-native-vision-camera"
 
 import { Text } from "@/components/Text"
+import { useStores } from "@/models/RootContext"
 import { AppStackScreenProps } from "@/navigators/AppNavigator"
 import { colors } from "@/theme/colors"
 import { useAppTheme } from "@/theme/context"
@@ -27,65 +28,57 @@ interface FaceCaptureScreenProps extends AppStackScreenProps<"FaceCapture"> {}
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window")
 const GUIDE_BOX_WIDTH = SCREEN_WIDTH * 0.7
 const GUIDE_BOX_HEIGHT = SCREEN_HEIGHT * 0.5
+const AUTO_COOLDOWN_MS = 4000
+const FACE_SCORE_THRESHOLD = 0.75
 
 export const FaceCaptureScreen: FC<FaceCaptureScreenProps> = () => {
-  const modelRef = useRef<InferenceSession | null>(null)
   const { themed } = useAppTheme()
-  const AUTO_COOLDOWN_MS = 4000
+  const { faceCapture } = useStores()
+
+  // Refs
+  const modelRef = useRef<InferenceSession | null>(null)
   const cameraRef = useRef<Camera>(null)
-  const lastAutoCaptureAtRef = useRef(0)
-  const isAutoCapturingRef = useRef(false)
+  const lastAutoCaptureRef = useRef(0)
+  const isProcessingRef = useRef(false)
+  const isUploadingRef = useRef(false)
+
+  // States
   const [hasPermission, setHasPermission] = useState(false)
-  const [isTaking, setIsTaking] = useState(false)
-  const [isFront, setIsFront] = useState<boolean>(true)
+  const [isFront, setIsFront] = useState(true)
+  const [status, setStatus] = useState("Ready")
+  const [matchName, setMatchName] = useState<string | null>(null)
 
   const device = useCameraDevice(isFront ? "front" : "back")
+  const format = useMemo(
+    () => device?.formats.find((f) => f.maxFps >= 25 && f.videoWidth >= 1280) ?? device?.formats[0],
+    [device],
+  )
 
-  // Add format selection
-  const format = useMemo(() => {
-    if (!device?.formats) return undefined
-
-    return (
-      device.formats.find((f) => {
-        return f.maxFps >= 30 && f.videoWidth >= 1280 && f.videoHeight >= 720
-      }) ?? device.formats[0]
-    )
-  }, [device])
-
+  // ============== Setup ==============
   useEffect(() => {
-    const requestPermission = async () => {
-      const result = await Camera.requestCameraPermission()
+    Camera.requestCameraPermission().then((result) => {
       setHasPermission(result === "granted")
-
       if (result !== "granted") {
-        Alert.alert("Camera Permission", "Camera permission is required to use this feature")
+        Alert.alert("Camera Permission", "Camera permission is required")
       }
-    }
-
-    requestPermission()
+    })
   }, [])
 
   useEffect(() => {
-    async function loadModel() {
+    if (!hasPermission) return
+
+    const loadModel = async () => {
       try {
-        // 1) Load cả .onnx và .onnx.data
-        const assets = await Asset.loadAsync([
+        const [modelAsset, dataAsset] = await Asset.loadAsync([
           require("@assets/models/blazeface.onnx"),
           require("@assets/models/blazeface.onnx.data"),
         ])
 
-        const modelAsset = assets[0]
-        const dataAsset = assets[1]
-
         const modelUri = modelAsset.localUri ?? modelAsset.uri
         const dataSrcUri = dataAsset.localUri ?? dataAsset.uri
 
-        if (!modelUri || !dataSrcUri) {
-          console.log("failed to get local URIs", { modelUri, dataSrcUri })
-          return
-        }
+        if (!modelUri || !dataSrcUri) throw new Error("Failed to load model URIs")
 
-        // 2) Đảm bảo .onnx.data tồn tại cạnh file .onnx với tên chính xác
         const dir = modelUri.substring(0, modelUri.lastIndexOf("/"))
         const dataDst = `${dir}/blazeface.onnx.data`
 
@@ -94,113 +87,136 @@ export const FaceCaptureScreen: FC<FaceCaptureScreenProps> = () => {
           await FileSystem.copyAsync({ from: dataSrcUri, to: dataDst })
         }
 
-        // 3) Tạo session
         modelRef.current = await InferenceSession.create(modelUri)
-        const model = modelRef.current
-        console.log(
-          "model loaded successfully",
-          `input names: ${model?.inputNames}, output names: ${model?.outputNames}`,
-        )
+        console.log("Model loaded:", modelRef.current?.inputNames, modelRef.current?.outputNames)
       } catch (e) {
-        console.log("failed to load model", `${e}`)
-        throw e
+        console.error("Failed to load model:", e)
       }
     }
 
-    if (hasPermission) {
-      loadModel()
-    }
+    loadModel()
   }, [hasPermission])
 
-  const isProcessingInference = useRef(false)
+  // ============== Upload Logic ==============
+  const uploadPhoto = useCallback(
+    async (photoPath: string) => {
+      const uri = `file://${photoPath}`
+      isUploadingRef.current = true
+      setStatus("Uploading...")
 
-  // Moved uploadPhoto and AutoCapture above handleFrameProcessed so AutoCapture is defined before use
-  const uploadPhoto = async (photo: { path: string }) => {
-    console.log("Captured Photo:", {
-      uri: photo.path,
-    })
-  }
+      try {
+        const result = await faceCapture.uploadFaceDetected(uri)
 
-  const AutoCapture = useCallback(async () => {
-    if (!cameraRef.current) return
-    if (isTaking || isAutoCapturingRef.current) return
+        if (result) {
+          setStatus("Upload successful!")
+          console.log("Upload result:", result)
 
-    const now = Date.now()
-    if (now - lastAutoCaptureAtRef.current < AUTO_COOLDOWN_MS) return
+          // ✅ Hiển thị tên hoặc "Guest" nếu null
+          if (result.match) {
+            setMatchName(result.match)
+          } else {
+            setMatchName("Guest")
+          }
 
-    try {
-      isAutoCapturingRef.current = true
-      setIsTaking(true)
-      const photo = await cameraRef.current.takePhoto({})
-      lastAutoCaptureAtRef.current = Date.now()
-      await uploadPhoto(photo)
-    } catch (error) {
-      console.warn("[VisionAutoCapture] Auto-capture error:", error)
-    } finally {
-      setIsTaking(false)
-      setTimeout(() => {
-        isAutoCapturingRef.current = false
-      }, 500)
-    }
-  }, [isTaking])
+          // Auto clear sau 2 giây
+          setTimeout(() => setMatchName(null), 2000)
 
-  const handleFrameProcessed = useCallback(
-    async (result: ProcessedFrame) => {
-      if (isProcessingInference.current || !modelRef.current) {
-        return
+          // Cleanup photo
+          await FileSystem.deleteAsync(uri, { idempotent: true })
+        } else {
+          setStatus("Upload failed")
+          setMatchName(null)
+        }
+
+        setTimeout(() => setStatus("Ready"), 2000)
+        return result
+      } catch (error) {
+        console.error("Upload error:", error)
+        setStatus("Upload error")
+        setMatchName(null)
+        setTimeout(() => setStatus("Ready"), 2000)
+        return null
+      } finally {
+        setTimeout(() => {
+          isUploadingRef.current = false
+        }, 2000)
+      }
+    },
+    [faceCapture],
+  )
+
+  // ============== Capture Logic ==============
+  const capturePhoto = useCallback(
+    async (isAuto = false) => {
+      if (!cameraRef.current || isUploadingRef.current) return
+
+      // Cooldown check for auto capture
+      if (isAuto) {
+        const now = Date.now()
+        if (now - lastAutoCaptureRef.current < AUTO_COOLDOWN_MS) return
+        lastAutoCaptureRef.current = now
       }
 
       try {
-        isProcessingInference.current = true
+        setStatus("Capturing...")
+        const photo = await cameraRef.current.takePhoto({})
+        await uploadPhoto(photo.path)
+      } catch (error) {
+        console.warn("Capture error:", error)
+        setStatus("Capture failed")
+        setTimeout(() => setStatus("Ready"), 2000)
+      }
+    },
+    [uploadPhoto],
+  )
+
+  // ============== Face Detection ==============
+  const handleFrameProcessed = useCallback(
+    async (result: ProcessedFrame) => {
+      if (isProcessingRef.current || !modelRef.current || isUploadingRef.current) return
+
+      try {
+        isProcessingRef.current = true
 
         const detection = await detectFaceScores(modelRef.current, result.imageData, result.shape)
-        console.log("Total scores:", detection.allScores)
-
-        const FACE_SCORE_THRESHOLD = 0.8
         const hasHighConfidenceFace = detection.allScores.some(
           (score) => score >= FACE_SCORE_THRESHOLD,
         )
 
         if (hasHighConfidenceFace) {
-          console.log("High confidence face detected, triggering auto-capture")
-          await AutoCapture()
+          console.log("High confidence face detected")
+          await capturePhoto(true)
         }
       } catch (error) {
         console.error("Inference error:", error)
       } finally {
-        isProcessingInference.current = false
+        isProcessingRef.current = false
       }
     },
-    [AutoCapture],
+    [capturePhoto],
   )
 
   const { frameProcessor } = useFaceDetectionProcessor({
     width: 256,
     height: 256,
     onFrameProcessed: handleFrameProcessed,
-    throttleMs: 1000, // Tăng lên 1000ms để giảm giật
+    throttleMs: 1000,
   })
 
-  const handleManualCapture = useCallback(async () => {
-    if (!cameraRef.current || isTaking) return
-
-    try {
-      setIsTaking(true)
-      const photo = await cameraRef.current.takePhoto({})
-      await uploadPhoto(photo)
-    } catch (error) {
-      console.warn("[VisionAutoCapture] Error capturing:", error)
-      Alert.alert("Capture Error", "An error occurred while capturing the photo.")
-    } finally {
-      setIsTaking(false)
-    }
-  }, [isTaking])
+  // ============== UI Handlers ==============
+  const handleManualCapture = useCallback(() => capturePhoto(false), [capturePhoto])
 
   const toggleCamera = useCallback(() => {
-    if (isTaking) return
+    if (isUploadingRef.current) return
     setIsFront((prev) => !prev)
-  }, [isTaking])
+  }, [])
 
+  // ✅ Helper để xác định icon và màu dựa trên match name
+  const isGuest = matchName === "Guest"
+  const tagIcon = isGuest ? "help-circle" : "person-circle"
+  const tagColor = isGuest ? colors.palette.neutral400 : colors.palette.accent500
+
+  // ============== Render ==============
   if (!device) {
     return (
       <View style={themed($container)}>
@@ -217,6 +233,8 @@ export const FaceCaptureScreen: FC<FaceCaptureScreenProps> = () => {
     )
   }
 
+  const isDisabled = status !== "Ready"
+
   return (
     <View style={themed($container)}>
       <Camera
@@ -224,65 +242,65 @@ export const FaceCaptureScreen: FC<FaceCaptureScreenProps> = () => {
         ref={cameraRef}
         device={device}
         isActive
-        photo={true}
-        pixelFormat="yuv"
+        photo
         format={format}
         frameProcessor={frameProcessor}
-        fps={30}
+        fps={25}
       />
 
       {/* Face Guide Overlay */}
       <View style={$overlay}>
-        {/* Top Dark Area */}
         <View style={$overlaySection} />
 
         <View style={$middleRow}>
-          {/* Left Dark Area */}
           <View style={$overlaySection} />
 
-          {/* Guide Box */}
           <View style={$guideBox}>
             <View style={[$corner, $topLeft]} />
             <View style={[$corner, $topRight]} />
             <View style={[$corner, $bottomLeft]} />
             <View style={[$corner, $bottomRight]} />
 
-            <View style={$guideContent}>
-              <Ionicons
-                name="person-outline"
-                size={80}
-                color={colors.palette.neutral100}
-                style={$guideIcon}
-              />
-              <Text style={$guideText} text="Position your face within the frame" size="xs" />
-            </View>
+            <Ionicons
+              name="person-outline"
+              size={80}
+              color={colors.palette.neutral100}
+              style={$guideIcon}
+            />
+            <Text style={$guideText} text="Position your face within the frame" size="xs" />
           </View>
 
-          {/* Right Dark Area */}
           <View style={$overlaySection} />
         </View>
 
-        {/* Bottom Dark Area */}
         <View style={$overlaySection} />
       </View>
 
+      {/* ✅ Match Tag - Hiển thị tên hoặc Guest */}
+      {matchName && (
+        <View style={[themed($matchTag), isGuest && $guestTag]}>
+          <Ionicons name={tagIcon} size={24} color={tagColor} />
+          <Text
+            style={[$matchName, isGuest && $guestText]}
+            text={matchName}
+            weight="bold"
+            size="md"
+          />
+        </View>
+      )}
+
+      {/* Controls */}
       <View style={themed($controls)}>
-        <Text
-          style={themed($statusText)}
-          text={isTaking ? "Capturing..." : "Ready - Auto-capture when face is detected"}
-          size="xs"
-        />
+        <Text style={themed($statusText)} text={status} size="xs" />
 
         <View style={$actionsRow}>
           <TouchableOpacity
             onPress={handleManualCapture}
-            style={[themed($captureButton), isTaking && $disabledOpacity]}
-            disabled={isTaking}
-            accessibilityRole="button"
-            accessibilityLabel="Capture Photo"
+            style={[themed($captureButton), isDisabled && $disabledOpacity]}
+            disabled={isDisabled}
           >
             <Ionicons
-              name={isTaking ? "hourglass" : "camera"}
+              name={isDisabled ? "hourglass" : "camera"}
               size={26}
               color={colors.palette.neutral900}
             />
@@ -290,10 +308,8 @@ export const FaceCaptureScreen: FC<FaceCaptureScreenProps> = () => {
 
           <TouchableOpacity
             onPress={toggleCamera}
-            style={[themed($iconButton), isTaking && $disabledOpacity]}
-            disabled={isTaking}
-            accessibilityRole="button"
-            accessibilityLabel="Switch Camera"
+            style={[themed($iconButton), isDisabled && $disabledOpacity]}
+            disabled={isDisabled}
           >
             <Ionicons name="camera-reverse" size={22} color={colors.palette.neutral100} />
           </TouchableOpacity>
@@ -303,6 +319,7 @@ export const FaceCaptureScreen: FC<FaceCaptureScreenProps> = () => {
   )
 }
 
+// ============== Styles ==============
 const $container: ThemedStyle<ViewStyle> = ({ colors }) => ({
   flex: 1,
   backgroundColor: colors.palette.neutral900,
@@ -310,11 +327,8 @@ const $container: ThemedStyle<ViewStyle> = ({ colors }) => ({
   alignItems: "center",
 })
 
-const $camera: ViewStyle = {
-  ...StyleSheet.absoluteFillObject,
-}
+const $camera: ViewStyle = StyleSheet.absoluteFillObject
 
-// Overlay styles
 const $overlay: ViewStyle = {
   ...StyleSheet.absoluteFillObject,
   justifyContent: "center",
@@ -338,7 +352,6 @@ const $guideBox: ViewStyle = {
   borderWidth: 2,
   borderColor: colors.palette.neutral100,
   borderRadius: 20,
-  position: "relative",
   justifyContent: "center",
   alignItems: "center",
 }
@@ -383,11 +396,6 @@ const $bottomRight: ViewStyle = {
   borderBottomRightRadius: 20,
 }
 
-const $guideContent: ViewStyle = {
-  alignItems: "center",
-  justifyContent: "center",
-}
-
 const $guideIcon: ViewStyle = {
   opacity: 0.7,
   marginBottom: 8,
@@ -398,6 +406,37 @@ const $guideText: TextStyle = {
   textAlign: "center",
   opacity: 0.9,
   fontWeight: "500",
+}
+
+const $matchTag: ThemedStyle<ViewStyle> = ({ spacing, colors }) => ({
+  position: "absolute",
+  top: spacing.xl,
+  alignSelf: "center",
+  flexDirection: "row",
+  alignItems: "center",
+  gap: spacing.xs,
+  backgroundColor: colors.palette.neutral800,
+  paddingHorizontal: spacing.lg,
+  paddingVertical: spacing.md,
+  borderRadius: 16,
+  borderWidth: 2,
+  borderColor: colors.palette.accent500,
+})
+
+// ✅ Style cho Guest tag
+const $guestTag: ViewStyle = {
+  borderColor: colors.palette.neutral600,
+  opacity: 0.9,
+}
+
+const $matchName: TextStyle = {
+  color: colors.palette.neutral100,
+}
+
+// ✅ Style cho Guest text
+const $guestText: TextStyle = {
+  color: colors.palette.neutral400,
+  fontStyle: "italic",
 }
 
 const $controls: ThemedStyle<ViewStyle> = ({ spacing }) => ({

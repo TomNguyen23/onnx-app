@@ -30,6 +30,13 @@ const palette = {
 
   angry100: "#F2D6CD",
   angry500: "#C03403",
+  base: "#359EFF",
+  baseSoft: "#b3cff9ff",
+
+  granted: "#8fc590ff",
+  grantedSoft: "#d4eddbff",
+
+  gray100: "#F0F2F4",
 
   overlay20: "rgba(25, 16, 21, 0.2)",
   overlay50: "rgba(25, 16, 21, 0.5)",

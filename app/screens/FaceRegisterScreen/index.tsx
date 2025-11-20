@@ -158,7 +158,7 @@ export const FaceRegisterScreen: FC<FaceRegisterScreenProps> = ({ navigation }) 
         if (success) {
           setShowNameModal(false)
           Alert.alert("Success", `Registration completed for ${personName}`, [
-            { text: "OK", onPress: () => navigation.navigate("Welcome") },
+            { text: "OK", onPress: () => navigation.navigate("Home") },
           ])
         } else {
           Alert.alert("Error", faceCapture.error || "Failed to register")

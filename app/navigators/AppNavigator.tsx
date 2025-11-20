@@ -9,9 +9,11 @@ import { NavigationContainer } from "@react-navigation/native"
 import { createNativeStackNavigator, NativeStackScreenProps } from "@react-navigation/native-stack"
 
 import Config from "@/config"
+import { CheckinHistoryScreen } from "@/screens/CheckinHistoryScreen"
 import { ErrorBoundary } from "@/screens/ErrorScreen/ErrorBoundary"
 import { FaceCaptureScreen } from "@/screens/FaceCaptureScreen"
 import { FaceRegisterScreen } from "@/screens/FaceRegisterScreen"
+import { HomeScreen } from "@/screens/HomeScreen"
 import { WelcomeScreen } from "@/screens/WelcomeScreen"
 import { useAppTheme } from "@/theme/context"
 
@@ -31,6 +33,8 @@ export type AppStackParamList = {
   // 🔥 Your screens go here
   FaceCapture: undefined
   FaceRegister: undefined
+  Home: undefined
+  CheckinHistory: undefined
   // IGNITE_GENERATOR_ANCHOR_APP_STACK_PARAM_LIST
 }
 
@@ -63,9 +67,11 @@ const AppStack = () => {
         },
       }}
     >
+      <Stack.Screen name="Home" component={HomeScreen} />
       <Stack.Screen name="Welcome" component={WelcomeScreen} />
       <Stack.Screen name="FaceCapture" component={FaceCaptureScreen} />
       <Stack.Screen name="FaceRegister" component={FaceRegisterScreen} />
+      <Stack.Screen name="CheckinHistory" component={CheckinHistoryScreen} />
       {/** 🔥 Your screens go here */}
       {/* IGNITE_GENERATOR_ANCHOR_APP_STACK_SCREENS */}
     </Stack.Navigator>

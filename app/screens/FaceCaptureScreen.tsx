@@ -26,7 +26,7 @@ import { ProcessedFrame, useFaceDetectionProcessor } from "@/utils/useFaceDetect
 interface FaceCaptureScreenProps extends AppStackScreenProps<"FaceCapture"> {}
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window")
-const GUIDE_BOX_WIDTH = SCREEN_WIDTH * 0.7
+const GUIDE_BOX_WIDTH = SCREEN_WIDTH * 0.75
 const GUIDE_BOX_HEIGHT = SCREEN_HEIGHT * 0.5
 const AUTO_COOLDOWN_MS = 4000
 const FACE_SCORE_THRESHOLD = 0.75
@@ -47,6 +47,7 @@ export const FaceCaptureScreen: FC<FaceCaptureScreenProps> = () => {
   const [isFront, setIsFront] = useState(true)
   const [status, setStatus] = useState("Ready")
   const [matchName, setMatchName] = useState<string | null>(null)
+  const [similarity, setSimilarity] = useState<number | null>(null)
 
   const device = useCameraDevice(isFront ? "front" : "back")
   const format = useMemo(
@@ -111,21 +112,21 @@ export const FaceCaptureScreen: FC<FaceCaptureScreenProps> = () => {
           setStatus("Upload successful!")
           console.log("Upload result:", result)
 
-          // ✅ Hiển thị tên hoặc "Guest" nếu null
-          if (result.match) {
-            setMatchName(result.match)
-          } else {
-            setMatchName("Guest")
-          }
+          // Sử dụng các field từ API: match & similarity
+          setMatchName(result.match ?? "Guest")
+          setSimilarity(typeof result.similarity === "number" ? result.similarity : null)
 
           // Auto clear sau 2 giây
-          setTimeout(() => setMatchName(null), 2000)
+          setTimeout(() => {
+            setMatchName(null)
+            setSimilarity(null)
+          }, 2000)
 
-          // Cleanup photo
           await FileSystem.deleteAsync(uri, { idempotent: true })
         } else {
           setStatus("Upload failed")
           setMatchName(null)
+          setSimilarity(null)
         }
 
         setTimeout(() => setStatus("Ready"), 2000)
@@ -134,6 +135,7 @@ export const FaceCaptureScreen: FC<FaceCaptureScreenProps> = () => {
         console.error("Upload error:", error)
         setStatus("Upload error")
         setMatchName(null)
+        setSimilarity(null)
         setTimeout(() => setStatus("Ready"), 2000)
         return null
       } finally {
@@ -214,7 +216,7 @@ export const FaceCaptureScreen: FC<FaceCaptureScreenProps> = () => {
   // ✅ Helper để xác định icon và màu dựa trên match name
   const isGuest = matchName === "Guest"
   const tagIcon = isGuest ? "help-circle" : "person-circle"
-  const tagColor = isGuest ? colors.palette.neutral400 : colors.palette.accent500
+  // const tagColor = isGuest ? colors.palette.neutral400 : colors.palette.accent500
 
   // ============== Render ==============
   if (!device) {
@@ -279,10 +281,12 @@ export const FaceCaptureScreen: FC<FaceCaptureScreenProps> = () => {
       {/* ✅ Match Tag - Hiển thị tên hoặc Guest */}
       {matchName && (
         <View style={[themed($matchTag), isGuest && $guestTag]}>
-          <Ionicons name={tagIcon} size={24} color={tagColor} />
+          <Ionicons name={tagIcon} size={24} color={colors.palette.accent500} />
           <Text
             style={[$matchName, isGuest && $guestText]}
-            text={matchName}
+            text={
+              similarity != null ? `${matchName} (${(similarity * 100).toFixed(1)}%)` : matchName
+            }
             weight="bold"
             size="md"
           />

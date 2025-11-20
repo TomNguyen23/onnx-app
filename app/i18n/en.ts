@@ -1,3 +1,6 @@
+import checkinHistoryEn from "@/i18n/screens/checkinHistory/en"
+import homeEn from "@/i18n/screens/home/en"
+
 const en = {
   common: {
     ok: "OK!",
@@ -23,6 +26,9 @@ const en = {
       button: "Let's try this again",
     },
   },
+
+  ...homeEn,
+  ...checkinHistoryEn,
 }
 
 export default en

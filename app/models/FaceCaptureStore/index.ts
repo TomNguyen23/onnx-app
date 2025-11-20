@@ -109,7 +109,7 @@ export const FaceCaptureStore = types
           type: type,
         } as any)
 
-        formData.append("threshold", "0.2")
+        formData.append("threshold", "0.4")
 
         const res = await uploadFaceDetect(formData)
 

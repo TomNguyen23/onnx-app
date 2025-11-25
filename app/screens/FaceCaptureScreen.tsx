@@ -7,6 +7,9 @@ import {
   StyleSheet,
   TouchableOpacity,
   Dimensions,
+  Modal,
+  Image,
+  ImageStyle,
 } from "react-native"
 import { Asset } from "expo-asset"
 import * as FileSystem from "expo-file-system"
@@ -20,7 +23,9 @@ import { AppStackScreenProps } from "@/navigators/AppNavigator"
 import { colors } from "@/theme/colors"
 import { useAppTheme } from "@/theme/context"
 import { ThemedStyle } from "@/theme/types"
+import { cropImage } from "@/utils/cropImage"
 import { detectFaceScores } from "@/utils/faceDetectionInference"
+// import { loadBlazeFaceModel } from "@/utils/loadOnnxModel"
 import { ProcessedFrame, useFaceDetectionProcessor } from "@/utils/useFaceDetectionProccessor"
 
 interface FaceCaptureScreenProps extends AppStackScreenProps<"FaceCapture"> {}
@@ -29,7 +34,7 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window")
 const GUIDE_BOX_WIDTH = SCREEN_WIDTH * 0.75
 const GUIDE_BOX_HEIGHT = SCREEN_HEIGHT * 0.5
 const AUTO_COOLDOWN_MS = 4000
-const FACE_SCORE_THRESHOLD = 0.75
+const FACE_SCORE_THRESHOLD = 0.8
 
 export const FaceCaptureScreen: FC<FaceCaptureScreenProps> = () => {
   const { themed } = useAppTheme()
@@ -48,6 +53,8 @@ export const FaceCaptureScreen: FC<FaceCaptureScreenProps> = () => {
   const [status, setStatus] = useState("Ready")
   const [matchName, setMatchName] = useState<string | null>(null)
   const [similarity, setSimilarity] = useState<number | null>(null)
+  const [capturedImageUri, setCapturedImageUri] = useState<string | null>(null)
+  const [showPreview, setShowPreview] = useState(false)
 
   const device = useCameraDevice(isFront ? "front" : "back")
   const format = useMemo(
@@ -100,8 +107,7 @@ export const FaceCaptureScreen: FC<FaceCaptureScreenProps> = () => {
 
   // ============== Upload Logic ==============
   const uploadPhoto = useCallback(
-    async (photoPath: string) => {
-      const uri = `file://${photoPath}`
+    async (uri: string) => {
       isUploadingRef.current = true
       setStatus("Uploading...")
 
@@ -149,10 +155,9 @@ export const FaceCaptureScreen: FC<FaceCaptureScreenProps> = () => {
 
   // ============== Capture Logic ==============
   const capturePhoto = useCallback(
-    async (isAuto = false) => {
+    async (isAuto = false, box?: [number, number, number, number]) => {
       if (!cameraRef.current || isUploadingRef.current) return
 
-      // Cooldown check for auto capture
       if (isAuto) {
         const now = Date.now()
         if (now - lastAutoCaptureRef.current < AUTO_COOLDOWN_MS) return
@@ -162,32 +167,62 @@ export const FaceCaptureScreen: FC<FaceCaptureScreenProps> = () => {
       try {
         setStatus("Capturing...")
         const photo = await cameraRef.current.takePhoto({})
-        await uploadPhoto(photo.path)
+        const uri = `file://${photo.path}`
+
+        let finalUri = uri
+        if (box) {
+          try {
+            const cropped = await cropImage(finalUri, box, 0.9)
+            if (cropped) {
+              finalUri = cropped
+              console.log("Cropped face URI:", finalUri)
+            } else {
+              console.warn("Crop returned null, fallback to original.")
+            }
+          } catch (e) {
+            console.warn("Crop failed, dùng ảnh gốc:", e)
+          }
+        }
+
+        // Lưu URI ảnh đã crop để hiển thị preview
+        setCapturedImageUri(finalUri)
+        setShowPreview(true)
+        // await uploadPhoto(finalUri)
+        setStatus("Ready")
       } catch (error) {
         console.warn("Capture error:", error)
         setStatus("Capture failed")
         setTimeout(() => setStatus("Ready"), 2000)
       }
     },
-    [uploadPhoto],
+    [],
   )
+
+  // ============== Preview Handlers ==============
+  const handleClosePreview = useCallback(() => {
+    setShowPreview(false)
+    setCapturedImageUri(null)
+  }, [])
+
+  const handleUploadFromPreview = useCallback(async () => {
+    if (capturedImageUri) {
+      setShowPreview(false)
+      await uploadPhoto(capturedImageUri)
+      setCapturedImageUri(null)
+    }
+  }, [capturedImageUri, uploadPhoto])
 
   // ============== Face Detection ==============
   const handleFrameProcessed = useCallback(
     async (result: ProcessedFrame) => {
       if (isProcessingRef.current || !modelRef.current || isUploadingRef.current) return
-
       try {
         isProcessingRef.current = true
-
         const detection = await detectFaceScores(modelRef.current, result.imageData, result.shape)
-        const hasHighConfidenceFace = detection.allScores.some(
-          (score) => score >= FACE_SCORE_THRESHOLD,
-        )
-
+        const hasHighConfidenceFace = detection.allScores[0] >= FACE_SCORE_THRESHOLD
         if (hasHighConfidenceFace) {
           console.log("High confidence face detected")
-          await capturePhoto(true)
+          await capturePhoto(true, detection.box)
         }
       } catch (error) {
         console.error("Inference error:", error)
@@ -202,7 +237,7 @@ export const FaceCaptureScreen: FC<FaceCaptureScreenProps> = () => {
     width: 256,
     height: 256,
     onFrameProcessed: handleFrameProcessed,
-    throttleMs: 1000,
+    throttleMs: 300,
   })
 
   // ============== UI Handlers ==============
@@ -292,6 +327,48 @@ export const FaceCaptureScreen: FC<FaceCaptureScreenProps> = () => {
           />
         </View>
       )}
+
+      {/* Preview Modal */}
+      <Modal
+        visible={showPreview}
+        transparent
+        animationType="fade"
+        onRequestClose={handleClosePreview}
+      >
+        <View style={$modalOverlay}>
+          <View style={themed($modalContent)}>
+            <View style={$modalHeader}>
+              <Text text="Captured Image" weight="bold" size="lg" style={themed($modalTitle)} />
+              <TouchableOpacity onPress={handleClosePreview} style={themed($closeButton)}>
+                <Ionicons name="close" size={24} color={colors.palette.neutral100} />
+              </TouchableOpacity>
+            </View>
+
+            {capturedImageUri && (
+              <Image
+                source={{ uri: capturedImageUri }}
+                style={$previewImage}
+                resizeMode="contain"
+              />
+            )}
+
+            <View style={$modalActions}>
+              <TouchableOpacity onPress={handleClosePreview} style={themed($modalButton)}>
+                <Ionicons name="trash-outline" size={20} color={colors.palette.neutral100} />
+                <Text text="Discard" style={themed($buttonText)} size="sm" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleUploadFromPreview}
+                style={themed($modalButtonPrimary)}
+              >
+                <Ionicons name="cloud-upload-outline" size={20} color={colors.palette.neutral900} />
+                <Text text="Upload" style={$buttonTextPrimary} size="sm" weight="medium" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Controls */}
       <View style={themed($controls)}>
@@ -486,4 +563,85 @@ const $captureButton: ThemedStyle<ViewStyle> = ({ spacing, colors }) => ({
 
 const $disabledOpacity: ViewStyle = {
   opacity: 0.6,
+}
+
+const $modalOverlay: ViewStyle = {
+  flex: 1,
+  backgroundColor: "rgba(0, 0, 0, 0.9)",
+  justifyContent: "center",
+  alignItems: "center",
+}
+
+const $modalContent: ThemedStyle<ViewStyle> = ({ spacing, colors }) => ({
+  width: SCREEN_WIDTH * 0.9,
+  maxHeight: SCREEN_HEIGHT * 0.8,
+  backgroundColor: colors.palette.neutral800,
+  borderRadius: 20,
+  padding: spacing.lg,
+})
+
+const $modalHeader: ViewStyle = {
+  flexDirection: "row",
+  justifyContent: "space-between",
+  alignItems: "center",
+  marginBottom: 16,
+}
+
+const $modalTitle: ThemedStyle<TextStyle> = ({ colors }) => ({
+  color: colors.palette.neutral100,
+})
+
+const $closeButton: ThemedStyle<ViewStyle> = ({ colors }) => ({
+  width: 36,
+  height: 36,
+  borderRadius: 18,
+  backgroundColor: colors.palette.neutral700,
+  alignItems: "center",
+  justifyContent: "center",
+})
+
+const $previewImage: ImageStyle = {
+  width: "100%",
+  height: SCREEN_HEIGHT * 0.5,
+  borderRadius: 12,
+  backgroundColor: colors.palette.neutral900,
+}
+
+const $modalActions: ViewStyle = {
+  flexDirection: "row",
+  justifyContent: "space-between",
+  marginTop: 20,
+  gap: 12,
+}
+
+const $modalButton: ThemedStyle<ViewStyle> = ({ spacing, colors }) => ({
+  flex: 1,
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: spacing.xs,
+  paddingVertical: spacing.md,
+  borderRadius: 12,
+  backgroundColor: colors.palette.neutral700,
+  borderWidth: 1,
+  borderColor: colors.palette.neutral600,
+})
+
+const $modalButtonPrimary: ThemedStyle<ViewStyle> = ({ spacing, colors }) => ({
+  flex: 1,
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: spacing.xs,
+  paddingVertical: spacing.md,
+  borderRadius: 12,
+  backgroundColor: colors.palette.accent500,
+})
+
+const $buttonText: ThemedStyle<TextStyle> = ({ colors }) => ({
+  color: colors.palette.neutral100,
+})
+
+const $buttonTextPrimary: TextStyle = {
+  color: colors.palette.neutral900,
 }

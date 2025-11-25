@@ -13,11 +13,20 @@ import { ProgressBar } from "@/screens/FaceRegisterScreen/components/ProgressBar
 import { colors } from "@/theme/colors"
 import { useAppTheme } from "@/theme/context"
 import { ThemedStyle } from "@/theme/types"
+import { cropToGuideBox } from "@/utils/cropToGuideBox"
 
 interface FaceRegisterScreenProps extends AppStackScreenProps<"FaceRegister"> {}
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window")
 const GUIDE_BOX_SIZE = { width: SCREEN_WIDTH * 0.7, height: SCREEN_HEIGHT * 0.5 }
+
+// Calculate guide box position (centered)
+const GUIDE_BOX_POSITION = {
+  x: (SCREEN_WIDTH - GUIDE_BOX_SIZE.width) / 2,
+  y: (SCREEN_HEIGHT - GUIDE_BOX_SIZE.height) / 2,
+  width: GUIDE_BOX_SIZE.width,
+  height: GUIDE_BOX_SIZE.height,
+}
 
 type FaceDirection = "front" | "up" | "down" | "left" | "right"
 
@@ -109,8 +118,16 @@ export const FaceRegisterScreen: FC<FaceRegisterScreenProps> = ({ navigation }) 
       // ✅ Ensure URI has file:// prefix
       const normalizedUri = photo.path.startsWith("file://") ? photo.path : `file://${photo.path}`
 
-      setCapturedPhotos((prev) => ({ ...prev, [currentDirection.key]: normalizedUri }))
-      console.log(`Captured ${currentDirection.title}:`, normalizedUri)
+      // ✅ Crop photo to guide box region
+      const croppedUri = await cropToGuideBox(normalizedUri, GUIDE_BOX_POSITION, 1)
+
+      console.log(`Captured ${currentDirection.title}:`, {
+        original: normalizedUri,
+        cropped: croppedUri,
+      })
+
+      setCapturedPhotos((prev) => ({ ...prev, [currentDirection.key]: croppedUri }))
+      // setCapturedPhotos((prev) => ({ ...prev, [currentDirection.key]: normalizedUri }))
 
       setTimeout(() => {
         if (currentStep < FACE_DIRECTIONS.length - 1) setCurrentStep((prev) => prev + 1)

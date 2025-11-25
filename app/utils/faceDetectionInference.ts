@@ -1,7 +1,10 @@
 import { InferenceSession, Tensor } from "onnxruntime-react-native"
 
+import { applyNMS } from "@/utils/nms"
+
 export interface FaceDetectionResult {
   allScores: number[]
+  box: [number, number, number, number]
   timestamp: number
   outputShape?: readonly number[]
 }
@@ -49,9 +52,13 @@ export async function detectFaceScores(
 
     // Chuyển scores thành array
     const allScores = Array.from(scoresOutput.data as Float32Array)
+    const allBoxes = Array.from(boxesOutput.data as Float32Array)
+
+    const { boxes, scores } = applyNMS(allBoxes, allScores, 0.3)
 
     return {
-      allScores,
+      allScores: scores,
+      box: boxes.length >= 4 ? [boxes[0], boxes[1], boxes[2], boxes[3]] : [0, 0, 0, 0],
       timestamp: Date.now(),
       outputShape: scoresOutput.dims,
     }

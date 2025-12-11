@@ -9,6 +9,7 @@ import { NavigationContainer } from "@react-navigation/native"
 import { createNativeStackNavigator, NativeStackScreenProps } from "@react-navigation/native-stack"
 
 import Config from "@/config"
+import { ChatSupportScreen } from "@/screens/ChatSupportScreen"
 import { CheckinHistoryScreen } from "@/screens/CheckinHistoryScreen"
 import { ErrorBoundary } from "@/screens/ErrorScreen/ErrorBoundary"
 import { FaceCaptureScreen } from "@/screens/FaceCaptureScreen"
@@ -35,6 +36,7 @@ export type AppStackParamList = {
   FaceRegister: undefined
   Home: undefined
   CheckinHistory: undefined
+  ChatSupport: undefined
   // IGNITE_GENERATOR_ANCHOR_APP_STACK_PARAM_LIST
 }
 
@@ -72,6 +74,7 @@ const AppStack = () => {
       <Stack.Screen name="FaceCapture" component={FaceCaptureScreen} />
       <Stack.Screen name="FaceRegister" component={FaceRegisterScreen} />
       <Stack.Screen name="CheckinHistory" component={CheckinHistoryScreen} />
+      <Stack.Screen name="ChatSupport" component={ChatSupportScreen} />
       {/** 🔥 Your screens go here */}
       {/* IGNITE_GENERATOR_ANCHOR_APP_STACK_SCREENS */}
     </Stack.Navigator>

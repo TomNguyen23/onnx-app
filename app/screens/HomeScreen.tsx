@@ -64,7 +64,10 @@ export const HomeScreen: FC<HomeScreenProps> = ({ navigation }) => {
           <Text tx="homeContent:registerFaceDetails" size="xxs" weight="light" />
         </TouchableOpacity>
 
-        <TouchableOpacity style={themed($menuItem)}>
+        <TouchableOpacity
+          style={themed($menuItem)}
+          onPress={() => navigation.navigate("ChatSupport")}
+        >
           <FontAwesome5 name="question-circle" size={23} style={themed($menuIcon)} />
           <Text tx="homeContent:questionsAndSupport" size="xs" weight="semiBold" />
           <Text tx="homeContent:questionsAndSupportDetails" size="xxs" weight="light" />

@@ -1,5 +1,6 @@
 import { FC, useState, useCallback, useRef, useEffect, useMemo } from "react"
 import { View, ViewStyle, Dimensions, StyleSheet, Alert } from "react-native"
+import { useIsFocused } from "@react-navigation/native"
 import { Camera, useCameraDevice } from "react-native-vision-camera"
 
 import { Screen } from "@/components/Screen"
@@ -85,6 +86,7 @@ export const FaceRegisterScreen: FC<FaceRegisterScreenProps> = ({ navigation }) 
   const [isCapturing, setIsCapturing] = useState(false)
   const [showNameModal, setShowNameModal] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
+  const isFocused = useIsFocused()
 
   const device = useCameraDevice("front")
   const format = useMemo(
@@ -208,7 +210,14 @@ export const FaceRegisterScreen: FC<FaceRegisterScreenProps> = ({ navigation }) 
 
   return (
     <View style={themed($container)}>
-      <Camera style={$camera} ref={cameraRef} device={device} isActive photo format={format} />
+      <Camera
+        style={$camera}
+        ref={cameraRef}
+        device={device}
+        isActive={isFocused}
+        photo
+        format={format}
+      />
 
       <ProgressBar
         currentStep={currentStep}

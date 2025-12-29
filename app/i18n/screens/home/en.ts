@@ -16,6 +16,8 @@ const homeEn = {
     questionsAndSupportDetails: "Get help and support",
     registerFace: "Register Face",
     registerFaceDetails: "Set up your face for recognition",
+    uniformReview: "Uniform Review",
+    uniformReviewDetails: "Submit and review uniform compliance",
   },
 }
 

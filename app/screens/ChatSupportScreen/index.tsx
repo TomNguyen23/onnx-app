@@ -31,7 +31,7 @@ export const ChatSupportScreen: FC<ChatSupportScreenProps> = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
-      text: "Hi! I'm Qwen running locally. Ask me anything!",
+      text: "Hi! I'm AI assistant running locally. Ask me anything!",
       isBot: true,
     },
   ])
@@ -48,7 +48,7 @@ export const ChatSupportScreen: FC<ChatSupportScreenProps> = () => {
   const chatHistoryRef = useRef<ChatMessage[]>([
     {
       role: "system",
-      content: "You are a helpful AI assistant. Be concise and helpful in your responses.",
+      content: "You are an assistant that evaluates employee attire based on an image.",
     },
   ])
 
@@ -109,7 +109,7 @@ export const ChatSupportScreen: FC<ChatSupportScreenProps> = () => {
           messages: chatHistoryRef.current,
           n_predict: 400,
           stop: ["<|im_end|>", "<|endoftext|>"],
-          temperature: 0.7,
+          temperature: 0.1,
           top_p: 0.9,
         },
         (data: any) => {
@@ -196,7 +196,7 @@ export const ChatSupportScreen: FC<ChatSupportScreenProps> = () => {
       chatHistoryRef.current = [
         {
           role: "system",
-          content: "You are a helpful AI assistant. Be concise and helpful in your responses.",
+          content: "You are an assistant that evaluates employee attire based on an image.",
         },
       ]
     } catch (error) {
@@ -242,7 +242,7 @@ export const ChatSupportScreen: FC<ChatSupportScreenProps> = () => {
     chatHistoryRef.current = [
       {
         role: "system",
-        content: "You are a helpful AI assistant. Be concise and helpful in your responses.",
+        content: "You are an assistant that evaluates employee attire based on an image.",
       },
     ]
   }, [])

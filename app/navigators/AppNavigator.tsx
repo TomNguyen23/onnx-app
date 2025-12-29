@@ -15,6 +15,7 @@ import { ErrorBoundary } from "@/screens/ErrorScreen/ErrorBoundary"
 import { FaceCaptureScreen } from "@/screens/FaceCaptureScreen"
 import { FaceRegisterScreen } from "@/screens/FaceRegisterScreen"
 import { HomeScreen } from "@/screens/HomeScreen"
+import { UniformReviewScreen } from "@/screens/UniformReviewScreen"
 import { WelcomeScreen } from "@/screens/WelcomeScreen"
 import { useAppTheme } from "@/theme/context"
 
@@ -37,6 +38,7 @@ export type AppStackParamList = {
   Home: undefined
   CheckinHistory: undefined
   ChatSupport: undefined
+  UniformReview: undefined
   // IGNITE_GENERATOR_ANCHOR_APP_STACK_PARAM_LIST
 }
 
@@ -75,6 +77,7 @@ const AppStack = () => {
       <Stack.Screen name="FaceRegister" component={FaceRegisterScreen} />
       <Stack.Screen name="CheckinHistory" component={CheckinHistoryScreen} />
       <Stack.Screen name="ChatSupport" component={ChatSupportScreen} />
+      <Stack.Screen name="UniformReview" component={UniformReviewScreen} />
       {/** 🔥 Your screens go here */}
       {/* IGNITE_GENERATOR_ANCHOR_APP_STACK_SCREENS */}
     </Stack.Navigator>

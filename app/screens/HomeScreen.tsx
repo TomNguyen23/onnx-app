@@ -49,10 +49,13 @@ export const HomeScreen: FC<HomeScreenProps> = ({ navigation }) => {
           <Text tx="homeContent:checkInHistoryDetails" size="xxs" weight="light" />
         </TouchableOpacity>
 
-        <TouchableOpacity style={themed($menuItem)}>
-          <FontAwesome5 name="calendar-alt" size={23} style={themed($menuIcon)} />
-          <Text tx="homeContent:myWorkSchedule" size="xs" weight="semiBold" />
-          <Text tx="homeContent:myWorkScheduleDetails" size="xxs" weight="light" />
+        <TouchableOpacity
+          style={themed($menuItem)}
+          onPress={() => navigation.navigate("UniformReview")}
+        >
+          <MaterialIcons name="reviews" size={23} style={themed($menuIcon)} />
+          <Text tx="homeContent:uniformReview" size="xs" weight="semiBold" />
+          <Text tx="homeContent:uniformReviewDetails" size="xxs" weight="light" />
         </TouchableOpacity>
 
         <TouchableOpacity

@@ -48,6 +48,13 @@ export const MODELS = {
     mmproj: "mmproj-InternVL3-2B-Instruct-Q8_0.gguf",
     size: "1.89GB (model) + 337MB (mmproj)",
   },
+  INTERNVL3_5_2B: {
+    name: "InternVL3.5 2B",
+    repo: "QuantStack/InternVL3_5-2B-gguf",
+    filename: "InternVL3_5-2B-f16.gguf",
+    mmproj: "mmproj-InternVL3_5-2B-f16.gguf",
+    size: "4.07GB (model) + 636MB (mmproj)",
+  },
   QWEN2_5_VL_3B: {
     name: "Qwen2.5 VL 3B (Q4_K_M)",
     repo: "ggml-org/Qwen2.5-VL-3B-Instruct-GGUF",
@@ -75,6 +82,13 @@ export const MODELS = {
     filename: "gemma-3-4b-it-qat-Q3_K_M.gguf",
     mmproj: "mmproj-BF16.gguf",
     size: "1.95GB (model) + 881MB (mmproj)",
+  },
+  GEMMA_3_4B_IT: {
+    name: "Gemma 3 4B IT (Q4_K_M)",
+    repo: "unsloth/gemma-3-4b-it-GGUF",
+    filename: "gemma-3-4b-it-Q4_K_M.gguf",
+    mmproj: "mmproj-F16.gguf",
+    size: "2.49GB (model) + 851MB (mmproj)",
   },
   ULTRAVOX_V0_5_LLAMA_3_2_1B: {
     name: "Ultravox V0.5 Llama 3.2 1B (Q4_K_M)",

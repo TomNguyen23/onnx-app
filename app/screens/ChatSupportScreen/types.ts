@@ -6,6 +6,6 @@ export interface Message {
 }
 
 export const CONSTANTS = {
-  MAX_MESSAGE_LENGTH: 300,
+  MAX_MESSAGE_LENGTH: 2500,
   LOADING_FIRST_TIME_TEXT: "First time load takes 30-60 seconds",
 } as const

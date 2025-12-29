@@ -14,6 +14,7 @@ import {
 import { Asset } from "expo-asset"
 import * as FileSystem from "expo-file-system"
 import { Ionicons } from "@expo/vector-icons"
+import { useIsFocused } from "@react-navigation/native"
 import { InferenceSession } from "onnxruntime-react-native"
 import { Camera, useCameraDevice } from "react-native-vision-camera"
 
@@ -55,6 +56,7 @@ export const FaceCaptureScreen: FC<FaceCaptureScreenProps> = () => {
   const [similarity, setSimilarity] = useState<number | null>(null)
   const [capturedImageUri, setCapturedImageUri] = useState<string | null>(null)
   const [showPreview, setShowPreview] = useState(false)
+  const isFocused = useIsFocused()
 
   const device = useCameraDevice(isFront ? "front" : "back")
   const format = useMemo(
@@ -278,7 +280,7 @@ export const FaceCaptureScreen: FC<FaceCaptureScreenProps> = () => {
         style={$camera}
         ref={cameraRef}
         device={device}
-        isActive
+        isActive={isFocused}
         photo
         format={format}
         frameProcessor={frameProcessor}
